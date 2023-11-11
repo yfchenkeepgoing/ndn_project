@@ -59,3 +59,44 @@ If there is an error in the program, it may be that the webpage port is occupied
 
 Unnecessary files to be removed: a.py (a simplified version of server.py for debugging server methods), client.py (replaced by sensor.py), test.py (a test file, currently empty), interests.py (interest-type data packets are directly generated from sensor-type data packets).
 
+
+## Todo:
+
+Modify the fib function in sensor.py to use table lookups or switch to a different shortest path algorithm, such as Dijkstra's algorithm.
+
+Refactor the code by defining a utility class. Place commonly used functions like hashstr and get_host_ip into this class to avoid redundant code. Then, reference this utility class in each Python file.
+
+Change the city names from r0/r1/r2 to actual cities, such as Dublin, Cork, Beijing, etc.
+
+Fix the unit display issue in the webpage. The current units seem to be garbled.
+
+Call a real-time weather data API instead of using sensor.py to read data from the table.
+
+Optionally, shorten the data update interval. Reduce the time.sleep in sensor.py to make the program closer to real-time data acquisition.
+
+Find a new application scenario for this project.
+
+Resolve the issue of not being able to access the local area network (LAN) IP addresses during project runtime. The project prints the information:
+
+Running on http://127.0.0.1:33351
+Running on http://10.35.70.3:33351
+Even with the school's VPN enabled, it's not possible to access these addresses through the browser. The following URLs also cannot be accessed:
+
+http://127.0.0.1:33351/r0/temperature
+http://10.35.70.3:33351/r0/temperature
+I can only access the information on the webpage by using the following commands on the Raspberry Pi:
+
+curl http://127.0.0.1:33351/r0/temperature
+curl http://127.0.0.1:33351/r1/temperature
+Accessing the information with the command:
+
+curl http://10.35.70.3:33351/r0/temperature
+also doesn't work.
+The teacher has opened the following ports (see blackboard):
+
+Open ports: 33000:34000/tcp ALLOW 10.35.70.0/24
+3000:34000/udp ALLOW 10.35.70.0/24
+In theory, even if it's not possible to access through the local browser, it should be possible to access by entering the command:
+
+curl http://10.35.70.3:33351/r0/temperature
+on the Raspberry Pi. This key issue needs to be resolved.
