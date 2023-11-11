@@ -92,6 +92,11 @@ todo:
 6、可以适当缩短数据更新的时间间隔，减小sensor.py中的time.sleep，让程序更接近实时的获取数据
 7、给本项目寻找一个新的应用场景
 
+done:
+1、已成功在两台pi上运行，运行结果如下所示
+![Result URL](./result/result_url.png)
+![Result Output](./result/result_output.png)
+
 
 
 
