@@ -9,6 +9,8 @@ we can change the node r0 to r1 ... r5
 
 #### you also can change temperature to wind speed or humidity
 
+#### Terminate the process: ./terminate.sh
+
 可以修改的几处地方：
 1、可以定义一个工具类，将几个常用的函数全部写进去，比如hashstr，get_host_ip，以避免重复写这些基本的函数，然后在每个python文件中引用工具类即可
 2、hashstr函数可以采用更复杂的哈希算法，比如SHA-256，以提高安全性
