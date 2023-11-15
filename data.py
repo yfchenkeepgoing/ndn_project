@@ -12,7 +12,7 @@ class DATA():
     # Infaces（可能是代表接口的列表），fib（转发信息基础表，用于决定数据如何在网络中转发），和 data（要发送的数据包）
     # Infaces (may be a list representing interfaces), fib (forwarding information basic table, used to determine how data is forwarded in the network), and data (data packets to be sent)
 
-    def Send_data(self, Infaces, fib, data):
+    def send_data(self, Infaces, fib, data):
         # 用于存储准备发送的数据包
         # Used to store data packets to be sent
         packets = []
