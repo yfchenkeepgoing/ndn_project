@@ -5,30 +5,10 @@ import json # 导入json模块来处理JSON数据
 import socket # 导入socket模块用于网络通信
 import queue # 导入queue模块，提供了同步的、线程安全的队列类
 import time # 导入time模块用于处理时间相关的任务
-# from interests import INTEREST
 from data import DATA
-import hashlib # 导入hashlib模块用于加密哈希
-
+from utils import get_host_ip, hashstr
 
 BCAST_PORT = 33334 # 定义广播端口为33334
-
-# 定义一个函数来对字符串进行md5哈希，同client.py中的hashstr函数
-# Define a function to perform md5 hashing of strings, the same as the hashstr function in client.py
-def hashstr(string):
-    md5 = hashlib.md5()
-    md5.update(string.encode('utf-8'))
-    return md5.hexdigest()
-
-# 定义一个函数来获取本机的IP地址，同web.py中的同名函数
-# Define a function to obtain the IP address of the machine, the same as the function of the same name in web.py
-def get_host_ip():
-    try:
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.connect(('8.8.8.8', 80))
-        ip = s.getsockname()[0]
-    finally:
-        s.close()
-    return ip
 
 # 定义Server类，继承自threading.Thread
 # 这意味着每个 Server 实例可以作为一个独立的线程运行，这在处理并发网络请求时非常有用
@@ -134,7 +114,7 @@ class Server(threading.Thread):
     # Build a ring-shaped network topology and define the neighbor nodes of each node in the network
     # self.point_dict contains information about all nodes in the network, while the self.net_work dictionary maps each node ID (e.g. 'r0', 'r1', etc.) to a list of that node's neighbor node IDs.
     # This method ensures that each node has at least two neighbors, even at the edge of the network (first and last nodes). This network topology may be used to simulate a ring network, where each node is connected to its previous and following nodes
-    def get_network(self):
+    def update_network(self):
         # 遍历点字典，这个字典包含网络中所有节点的信息
         # Traverse the point dictionary, which contains information about all nodes in the network
         for i in range(len(self.point_dict)):
@@ -177,7 +157,7 @@ class Server(threading.Thread):
     # FIB is a key concept in Named Data Networks (NDN) and is used to determine how interest packets are forwarded in the network
     # Aims to build a shortest path mapping from the source node to every other node in the network layer by layer
     # In each iteration, the nodes contained in the upper_layer are used to explore new nodes (i.e., their neighbors) and determine the next hops of these new nodes (i.e., their values ​​in the FIB). This ensures that every node in the network can reach the source node via the shortest path
-    def get_fib(self):
+    def update_fib(self):
         try:
             # 初始化一个空集合，用来存放已经处理过的节点
             # Initialize an empty collection to store processed nodes
@@ -356,11 +336,11 @@ class Server(threading.Thread):
                 self.point_dict[key] = point
                 # 更新网络拓扑信息
                 # Update network topology information
-                self.get_network()
+                self.update_network()
 
             # 更新转发信息库
             # Update forwarding information database
-            self.get_fib()
+            self.update_fib()
 
             # 每当计数器达到10的倍数时，打印网络信息，帮助调试和监控
             # Whenever the counter reaches a multiple of 10, print network information to help debugging and monitoring
@@ -411,119 +391,123 @@ class Server(threading.Thread):
             # Get the 'type' field from the data packet to determine the next processing flow
             Type = packet['type']
 
-            # 如果数据包类型是'interest'，意味着这是一个兴趣包（请求数据）
-            # If the packet type is 'interest', it means this is an interest packet (request data)
-            if Type == 'interest':
-                # 计算内容名称的哈希值
-                # Calculate the hash value of the content name
-                hash_string = hashstr(packet['content_name'])
+            try:
+                # 如果数据包类型是'interest'，意味着这是一个兴趣包（请求数据）
+                # If the packet type is 'interest', it means this is an interest packet (request data)
+                if Type == 'interest':
+                    # 计算内容名称的哈希值
+                    # Calculate the hash value of the content name
+                    hash_string = hashstr(packet['content_name'])
 
-                # 将兴趣包存储在data_dict字典中，以哈希值为键
-                # Store the interest package in the data_dict dictionary, with the hash value as the key
-                self.data_dict[hash_string] = packet
+                    # 将兴趣包存储在data_dict字典中，以哈希值为键
+                    # Store the interest package in the data_dict dictionary, with the hash value as the key
+                    self.data_dict[hash_string] = packet
 
-                # 打印接收信息的日志
-                # Print the log of received information
-                print('node {} receive the information {}'.format(self.server_name, packet['content_name']))
-            
-            # 如果数据包类型是'data'，意味着这是一个数据包（包含请求的数据）
-            # If the packet type is 'data', it means this is a data packet (containing the requested data)
-            elif Type == 'data':
-                # 打印数据包内容名称的哈希值
-                # Print the hash value of the packet content name
-                print(hashstr(packet['content_name']))
-                # 如果哈希值在data_dict的键中，说明请求的数据在本地可用
-                # If the hash value is in the key of data_dict, it means that the requested data is available locally.
-                if hashstr(packet['content_name']) in self.data_dict.keys():
-                    # 获取哈希值对应的数据
-                    # Get the data corresponding to the hash value
-                    information = self.data_dict[hashstr(packet['content_name'])]
-                    # 将数据发送回请求的客户端
-                    # Send data back to the requesting client
-                    # Send the entire package at once
-                    conn.sendall(json.dumps(information).encode('utf-8'))  # 一次性将整个包发完
-                else:
-                    # 如果本地没有数据，则准备转发数据包
-                    # If there is no data locally, prepare to forward the data packet
-                    packet_forward = self.data.Send_data(self.net_work[self.server_name], self.fib, packet)
-                    # 如果有转发信息
-                    # If there is forwarding information
-                    if packet_forward:
-                        # 创建一个新的socket进行连接
-                        # Create a new socket to connect
-                        serve_check = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                        
-                        # 连接到下一个节点
-                        # Connect to the next node
-                        serve_check.connect((self.point_dict['r' + str(packet_forward[0])][0], self.basic_port + packet_forward[0]))
-                        
-                        # 发送数据包
-                        # Send packet
-                        serve_check.sendall(json.dumps(packet_forward[1]).encode('utf-8'))
-                        
-                        # 设置socket超时时间
-                        # Set socket timeout
-                        serve_check.settimeout(50)
-
-                        # 收到回复信息
-                        # Receive reply message
-                        information = serve_check.recv(1024)
-
-                        # 解码回复数据
-                        # Decode reply data
-                        information = json.loads(information.decode('utf-8'))
-                        
-                        # 如果收到回复
-                        # If a reply is received
-                        if information:
-                            # 发送数据给原始请求者
-                            # Send data to original requester
-                            conn.sendall(json.dumps(information).encode('utf-8'))
-                            # 关闭连接
-                            # Close the connection
-                            conn.close()
-                            # 如果回复中包含'content_name'，更新本地数据字典
-                            # If the reply contains 'content_name', update the local data dictionary
-                            if 'content_name' in information.keys():
-                                hash_string = hashstr(information['content_name'])
-                                self.data_dict[hash_string] = information
-                            # 关闭与下一个节点的连接
-                            # Close the connection to the next node
-                            serve_check.close()
-
-                    # 如果无法转发，则向客户端发送'not found'状态
-                    # If forwarding is not possible, send 'not found' status to client
+                    # 打印接收信息的日志
+                    # Print the log of received information
+                    print('node {} receive the information {}'.format(self.server_name, packet['content_name']))
+                
+                # 如果数据包类型是'data'，意味着这是一个数据包（包含请求的数据）
+                # If the packet type is 'data', it means this is a data packet (containing the requested data)
+                elif Type == 'data':
+                    # 打印数据包内容名称的哈希值
+                    # Print the hash value of the packet content name
+                    print(hashstr(packet['content_name']))
+                    # 如果哈希值在data_dict的键中，说明请求的数据在本地可用
+                    # If the hash value is in the key of data_dict, it means that the requested data is available locally.
+                    if hashstr(packet['content_name']) in self.data_dict.keys():
+                        # 获取哈希值对应的数据
+                        # Get the data corresponding to the hash value
+                        information = self.data_dict[hashstr(packet['content_name'])]
+                        # 将数据发送回请求的客户端
+                        # Send data back to the requesting client
+                        # Send the entire package at once
+                        conn.sendall(json.dumps(information).encode('utf-8'))  # 一次性将整个包发完
                     else:
-                        information = {
-                            'status': 'not found'
-                        }
-                        conn.sendall(json.dumps(information).encode('utf-8'))
-            
-            # 如果数据包类型是'sensor'，意味着这是一个来自传感器的数据包
-            # If the packet type is 'sensor', it means this is a packet from a sensor
-            elif Type == 'sensor':
-                # 计算内容名称的哈希值
-                # Calculate the hash value of the content name
-                hash_string = hashstr(packet['content_name'])
-                # 存储传感器数据包
-                # Store sensor data packets
-                self.data_dict[hash_string] = packet
-                # 包的类型改为interest
-                # Change the package type to interest
-                packet['type'] = 'interest'
-                # 将这个 packet 放入 interest_queue 队列中”，以便另一个线程可以稍后处理它
-                # Put this packet into the interest_queue queue" so that another thread can process it later
-                self.interest_queue.put(packet)
-                information = {
-                    'status': 'node receive information'
-                }
-                # 将information发送给请求的客户端
-                # Send information to the requesting client
-                conn.sendall(json.dumps(information).encode('utf-8'))
+                        # 如果本地没有数据，则准备转发数据包
+                        # If there is no data locally, prepare to forward the data packet
+                        packet_forward = self.data.send_data(self.net_work[self.server_name], self.fib, packet)
+                        # 如果有转发信息
+                        # If there is forwarding information
+                        if packet_forward:
+                            # 创建一个新的socket进行连接
+                            # Create a new socket to connect
+                            serve_check = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                            
+                            # 连接到下一个节点
+                            # Connect to the next node
+                            serve_check.connect((self.point_dict['r' + str(packet_forward[0])][0], self.basic_port + packet_forward[0]))
+                            
+                            # 发送数据包
+                            # Send packet
+                            serve_check.sendall(json.dumps(packet_forward[1]).encode('utf-8'))
+                            
+                            # 设置socket超时时间
+                            # Set socket timeout
+                            serve_check.settimeout(50)
 
-                # 关闭socket
-                # Close socket
-                conn.close()
+                            # 收到回复信息
+                            # Receive reply message
+                            information = serve_check.recv(1024)
+
+                            # 解码回复数据
+                            # Decode reply data
+                            information = json.loads(information.decode('utf-8'))
+                            
+                            # 如果收到回复
+                            # If a reply is received
+                            if information:
+                                # 发送数据给原始请求者
+                                # Send data to original requester
+                                conn.sendall(json.dumps(information).encode('utf-8'))
+                                # 关闭连接
+                                # Close the connection
+                                conn.close()
+                                # 如果回复中包含'content_name'，更新本地数据字典
+                                # If the reply contains 'content_name', update the local data dictionary
+                                if 'content_name' in information.keys():
+                                    hash_string = hashstr(information['content_name'])
+                                    self.data_dict[hash_string] = information
+                                # 关闭与下一个节点的连接
+                                # Close the connection to the next node
+                                serve_check.close()
+
+                        # 如果无法转发，则向客户端发送'not found'状态
+                        # If forwarding is not possible, send 'not found' status to client
+                        else:
+                            information = {
+                                'status': 'not found'
+                            }
+                            conn.sendall(json.dumps(information).encode('utf-8'))
+                
+                # 如果数据包类型是'sensor'，意味着这是一个来自传感器的数据包
+                # If the packet type is 'sensor', it means this is a packet from a sensor
+                elif Type == 'sensor':
+                    # 计算内容名称的哈希值
+                    # Calculate the hash value of the content name
+                    hash_string = hashstr(packet['content_name'])
+                    # 存储传感器数据包
+                    # Store sensor data packets
+                    self.data_dict[hash_string] = packet
+                    # 包的类型改为interest
+                    # Change the package type to interest
+                    packet['type'] = 'interest'
+                    # 将这个 packet 放入 interest_queue 队列中”，以便另一个线程可以稍后处理它
+                    # Put this packet into the interest_queue queue" so that another thread can process it later
+                    self.interest_queue.put(packet)
+                    information = {
+                        'status': 'node receive information'
+                    }
+                    # 将information发送给请求的客户端
+                    # Send information to the requesting client
+                    conn.sendall(json.dumps(information).encode('utf-8'))
+
+                    # 关闭socket
+                    # Close socket
+                    conn.close()
+            except Exception as e:
+                print(f"Something went wrong, dropping the packet due to: {e}")
+                continue
 
     # 处理队列中的兴趣包，将它们转发给网络中的其他节点
     # 这个函数的目的是处理队列中的兴趣包，通过网络将它们转发到关联的其他节点，以查找和检索请求的数据

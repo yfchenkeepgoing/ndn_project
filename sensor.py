@@ -12,6 +12,7 @@ import socket
 import pandas as pd
 import threading
 import time
+from utils import get_host_ip
 
 """
 Real-time weather broadcast system between cities or countries
@@ -24,17 +25,6 @@ Real-time weather broadcast system between cities or countries
 7: visibility *
 8: Solid pollutants PM2.5 Pollutants
 """
-
-# 获取本地的IP地址
-# Get the local IP address
-def get_host_ip():
-    try:
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.connect(('8.8.8.8', 80))
-        ip = s.getsockname()[0]
-    finally:
-        s.close()
-    return ip
 
 # 定义Client类，开启多线程模式
 # Define the Client class and enable multi-threading mode
@@ -110,9 +100,9 @@ class Client(threading.Thread):
         # Connect to this machine
         client.connect((self.HOST, self.PORT))
         try:
-            # 将天气信息发送给本地
-            # Send weather information to local
-            client.sendall(json.dumps(clientMessage).encode('utf-8'))
+            # 发送天气信息到本地，ensure_ascii=False 发送正确的单位
+            # Send weather information to local, ensure_ascii=False for sending correct units
+            client.sendall(json.dumps(clientMessage, ensure_ascii=False).encode('utf-8'))
             
             # 本地在接受到天气信息后返回的信息
             # The information returned by the local after receiving the weather information

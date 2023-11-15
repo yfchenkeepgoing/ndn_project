@@ -16,7 +16,6 @@ def main():
 
     # Set the basic port number to 33335, Open ports: 33000:34000
     basic_port = 33335 # 设置基础端口号为33335，Open ports: 33000:34000
-    # node_number = 0
 
     # Create server name
     server_name = "r"+str(node_number) # 创建服务器名
