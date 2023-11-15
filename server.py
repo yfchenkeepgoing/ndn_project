@@ -410,9 +410,6 @@ class Server(threading.Thread):
                 # 如果数据包类型是'data'，意味着这是一个数据包（包含请求的数据）
                 # If the packet type is 'data', it means this is a data packet (containing the requested data)
                 elif Type == 'data':
-                    # 打印数据包内容名称的哈希值
-                    # Print the hash value of the packet content name
-                    print(hashstr(packet['content_name']))
                     # 如果哈希值在data_dict的键中，说明请求的数据在本地可用
                     # If the hash value is in the key of data_dict, it means that the requested data is available locally.
                     if hashstr(packet['content_name']) in self.data_dict.keys():
