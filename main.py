@@ -25,7 +25,7 @@ def main():
     # Start server thread
     server.start() # 启动服务器线程
     # Wait 50 seconds and let the server run for a while
-    time.sleep(50) # 等待 50 秒，让服务器运行一段时间
+    time.sleep(20) # 等待 50 秒，让服务器运行一段时间
     # Call the main_sensor function to start the sensor (read data from the data table to simulate a real sensor)
     main_sensor(node_number, basic_port) # 调用 main_sensor 函数，启动传感器（从数据表中读入数据，模拟真实的传感器）
     

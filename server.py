@@ -5,6 +5,7 @@ import json # 导入json模块来处理JSON数据
 import socket # 导入socket模块用于网络通信
 import queue # 导入queue模块，提供了同步的、线程安全的队列类
 import time # 导入time模块用于处理时间相关的任务
+from datetime import datetime
 from data import DATA
 from utils import get_host_ip, hashstr
 
@@ -33,9 +34,12 @@ class Server(threading.Thread):
         # Calculate the actual port based on serverID
         self.PORT_accept = self.basic_port + serverID
 
+        # self timestamp to add it to the point dict for updation based on timeouts
+        self.self_timestamp = str(datetime.now())[:-7]
+
         # 创建字典记录服务器的IP地址和实际端口
-        # Create a dictionary to record the IP address and actual port of the server
-        self.ip_addr = {server_name: [self.HOST, self.PORT_accept]}
+        # Create a dictionary to record the IP address, actual port and current time of the server
+        self.ip_addr = {server_name: [self.HOST, self.PORT_accept, self.self_timestamp]}
         
         # 点字典，可能用于记录网络中的其他节点
         # Point dictionary, may be used to record other nodes in the network
@@ -80,6 +84,9 @@ class Server(threading.Thread):
         # Created instances of INTEREST and DATA, these may be classes that handle network interest and data packets
         # self.interest = INTEREST()
         self.data = DATA()
+
+        # broadcast interval in seconds
+        self.broadcast_interval = 10
 
     # 在 Python 中，当你创建一个线程时，你通常会从 threading.Thread 类派生一个新类，并且重写该类的 run() 方法。
     # In Python, when you create a thread, you usually derive a new class from the threading.Thread class and override the run() method of that class.
@@ -252,13 +259,16 @@ class Server(threading.Thread):
         # If sendto or recvfrom is not completed within 0.5 seconds, a socket.timeout exception will be thrown
         server.settimeout(0.5)
 
-        # 将服务器的IP地址转换为JSON格式的字符串，然后编码为UTF-8字节串准备发送
-        # Convert the server's IP address to a string in JSON format, and then encode it into a UTF-8 byte string to prepare for sending.
-        message = json.dumps(self.ip_addr).encode('utf-8')
-        
         # 无限循环，这意味着服务器会不停地发送广播
         # Infinite loop, which means the server will keep sending broadcasts
         while True:
+            # Update the current timestamp when the broadcast is sent
+            curr_time = str(datetime.now())[:-7]
+            # 将服务器的IP地址转换为JSON格式的字符串，然后编码为UTF-8字节串准备发送
+            # Convert the server's IP address to a string in JSON format, and then encode it into a UTF-8 byte string to prepare for sending.
+            self.ip_addr[self.server_name][2] = curr_time
+            message = json.dumps(self.ip_addr).encode('utf-8')
+        
             # 使用sendto方法发送编码后的消息
             # 消息被发送到特殊的'<broadcast>'地址，这是一个广播地址，消息将被发送给所有在BCAST_PORT端口监听的设备
             # Use the sendto method to send the encoded message
@@ -267,8 +277,28 @@ class Server(threading.Thread):
             server.sendto(message, ('<broadcast>', BCAST_PORT))  # 像所有的人广播自己IP
             
             # 休眠10秒，这个休眠时间决定了广播的间隔
-            # Sleep for 10 seconds. This sleep time determines the broadcast interval.
-            time.sleep(10)
+            # Sleep for x seconds. This sleep time determines the broadcast interval.
+            time.sleep(self.broadcast_interval)
+
+    # Updating the point dict to find which node went offline
+    def update_points(self) -> None:
+        keys_to_remove = []
+        for server_name in self.point_dict.keys():
+            # Get current time and the last broadcast time
+            current_time = datetime.now()
+            previous_time = datetime.strptime(str(self.point_dict[server_name][2]), '%Y-%m-%d %H:%M:%S')
+
+            # calculate the time difference since last broadcast
+            time_difference = int((current_time - previous_time).total_seconds())
+                                
+            if time_difference > self.broadcast_interval:
+                # remove the key if the broadcast is less than the interval
+                keys_to_remove.append(server_name)
+
+        for key in keys_to_remove:
+            if key in self.point_dict.keys():
+                self.point_dict.pop(key, None)
+
 
     # 监听广播消息，并更新节点信息字典
     # 这个函数的主要目的是维护网络中的节点信息，它监听广播消息并更新服务器的本地网络拓扑。
@@ -279,7 +309,7 @@ class Server(threading.Thread):
     def updateList(self):
         # 服务器名称字段下存储了自身的IP和端口信息
         # The server name field stores its own IP and port information.
-        self.point_dict[self.server_name] = (self.HOST, self.PORT_accept)
+        self.point_dict[self.server_name] = (self.HOST, self.PORT_accept, self.self_timestamp)
         
         # 创建一个UDP协议
         # Create a UDP protocol
@@ -326,11 +356,15 @@ class Server(threading.Thread):
             (key, value), = data.items()
             host = value[0]
             port = value[1]
-            point = (host, port)
+            timestamp = value[2]
+            point = (host, port, timestamp)
+
+            # Updating the point dict to find which node went offline
+            self.update_points()
 
             # 检查接收到的点是否不是自己，并且之前还没有被记录过
             # Check whether the received point is not itself and has not been recorded before
-            if point != (self.HOST, self.PORT_accept) and key not in self.point_dict.keys():
+            if point != (self.HOST, self.PORT_accept, self.self_timestamp) and key not in self.point_dict.keys():
                 # 如果是新点，则加入到点字典中
                 # If it is a new point, add it to the point dictionary
                 self.point_dict[key] = point
@@ -344,14 +378,14 @@ class Server(threading.Thread):
 
             # 每当计数器达到10的倍数时，打印网络信息，帮助调试和监控
             # Whenever the counter reaches a multiple of 10, print network information to help debugging and monitoring
-            if count_i % 10 == 0:
-                print('net_work: {}'.format(self.net_work))
-                print('FIB: {}'.format(self.fib))
-                print(('point {}'.format(self.point_dict.keys())))
+            # if count_i % 10 == 0:
+            print('Network: {}'.format(self.net_work))
+            print('FIB Table: {}'.format(self.fib))
+            print(('Points: {}'.format(self.point_dict.keys())))
             
             # 休眠10秒，减缓循环速度，减少资源消耗
             # Sleep for 10 seconds to slow down the loop speed and reduce resource consumption
-            time.sleep(10)
+            time.sleep(5)
     
     # 接收连接并处理兴趣包（interests）和数据包（data）
     # 这个服务器既可以建立服务也可以发送信息
@@ -387,11 +421,11 @@ class Server(threading.Thread):
             # 将接收的数据包（预期为JSON格式）解码并加载为Python字典
             # Decode and load the received data packet (expected to be in JSON format) into a Python dictionary
             packet = json.loads(packet.decode('utf-8'))
-            # 从数据包中获取'type'字段，决定接下来的处理流程
-            # Get the 'type' field from the data packet to determine the next processing flow
-            Type = packet['type']
 
             try:
+                # 从数据包中获取'type'字段，决定接下来的处理流程
+                # Get the 'type' field from the data packet to determine the next processing flow
+                Type = packet['type']
                 # 如果数据包类型是'interest'，意味着这是一个兴趣包（请求数据）
                 # If the packet type is 'interest', it means this is an interest packet (request data)
                 if Type == 'interest':

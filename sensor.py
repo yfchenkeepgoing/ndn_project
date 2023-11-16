@@ -123,7 +123,7 @@ def main_sensor(serve_number, basic_port):
     for index in range(500):
         client = Client(serve_number, index, basic_port)
         client.start()
-        time.sleep(200)
+        time.sleep(20)
 
 # 主函数，传入main_sensor所需要的参数
 # Main function, pass in the parameters required by main_sensor
