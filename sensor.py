@@ -2,7 +2,7 @@
 # 读取input2文件夹中所有csv文件中的信息，将其分门别类为8类天气信息，然后将其传输到本地
 # 本质上就是模仿了传感器的功能，即收集数据并传给服务器
 # The main functions of sensor.py are:
-# Read the information in all csv files in the input2 folder, classify it into 8 categories of weather information, and then transfer it to the local
+# Read the information in all csv files in the sensor folder, classify it into 8 categories of weather information, and then transfer it to the local
 # Essentially, it imitates the function of the sensor, that is, collects data and transmits it to the server
 
 #!/usr/bin/python2.6
@@ -30,19 +30,19 @@ Real-time weather broadcast system between cities or countries
 # Define the Client class and enable multi-threading mode
 class Client(threading.Thread):
     # 定义weather字典，将天气数据分为8类
-    weather_dict = {
+    soil_dict = {
         0: ('temperature', '°C'),
         1: ('humidity', '%rh'),
-        2: ('wind speed', 'km/h'),
-        3: ('barometic pressure', 'millibars'),
-        4: ('wind direction', ''),
-        5: ('weather condition', ''),
-        6: ('visibility', 'km'),
-        7: ('pollutants', 'ug/m^3')
+        2: ('cec', 'meq/100g'),
+        3: ('compaction', 'g/cm3'),
+        4: ('nutrition', '%'),
+        5: ('pH', ''),
+        6: ('salinity', 'dS/m'),
+        7: ('pesticides', 'ppm')
     }
 
     # 用于初始化类的函数，主要负责从input2文件夹中的csv文件中读取数据
-    # Function used to initialize the class, mainly responsible for reading data from the csv file in the input2 folder
+    # Function used to initialize the class, mainly responsible for reading data from the csv file in the sensor folder
     def __init__(self, serverID, index, basic_port):
         threading.Thread.__init__(self)
         self.basic_port = basic_port
@@ -50,7 +50,8 @@ class Client(threading.Thread):
         self.PORT = self.basic_port + serverID
         self.serverID = serverID  
         self.index = index
-        self.df = pd.read_csv("input2/{}.csv".format(self.serverID+1))
+        # self.df = pd.read_csv("sensor/{}.csv".format(self.serverID+1))
+        self.df = pd.read_csv("sensor/{}.csv".format(self.serverID+1))
 
     # run() 方法定义了线程启动后将要执行的操作
     # The run() method defines the operations to be performed after the thread is started.
@@ -82,10 +83,10 @@ class Client(threading.Thread):
         # Construct the message to be sent
         clientMessage = {
             'type': 'sensor',
-            'content_name': 'r{}/{}/{}'.format(self.serverID, self.weather_dict[i][0], time.strftime("%Y-%m-%d %H", time.localtime())),
+            'content_name': 'r{}/{}/{}'.format(self.serverID, self.soil_dict[i][0], time.strftime("%Y-%m-%d %H", time.localtime())),
             'information': str(informations[index]) if informations[index] else '',
-            'sensor_type': self.weather_dict[i][0],
-            'unit': self.weather_dict[i][1],
+            'sensor_type': self.soil_dict[i][0],
+            'unit': self.soil_dict[i][1],
             'time': time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
         }
         # 创建一个TCP套接字
