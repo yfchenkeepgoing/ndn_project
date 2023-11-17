@@ -1,5 +1,5 @@
 #!/bin/bash
-echo Starting the Node $1.....
+echo Starting the Device $1.....
 # 这一行在后台启动 main.py 脚本，并传递一个参数（$1），这个参数在执行 shell.sh 脚本时给出。
 # 例如，如果执行 ./shell.sh 0，那么 main.py 会接收到 0 作为参数。
 # This line starts the main.py script in the background and passes an argument ($1) that is given when the shell.sh script is executed.

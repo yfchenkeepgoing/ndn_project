@@ -28,6 +28,6 @@ fi
 # fi
 
 # Check if both processes were killed
-if [ "$KILLED_COUNT" -eq 2 ]; then
+if [ "$KILLED_COUNT" -eq 1 ]; then
     echo "Terminate node successfully."
 fi

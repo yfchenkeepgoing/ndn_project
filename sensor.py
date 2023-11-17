@@ -12,7 +12,8 @@ import socket
 import pandas as pd
 import threading
 import time
-from utils import get_host_ip
+from utils import get_host_ip, encrypt_with_aes, decrypt_with_aes, derive_key_from_password
+import random
 
 """
 Real-time weather broadcast system between cities or countries
@@ -84,30 +85,31 @@ class Client(threading.Thread):
         clientMessage = {
             'type': 'sensor',
             'content_name': 'r{}/{}/{}'.format(self.serverID, self.soil_dict[i][0], time.strftime("%Y-%m-%d %H", time.localtime())),
-            'information': str(informations[index]) if informations[index] else '',
+            'information': str(informations[random.randint(1, len(informations)-1)]),
             'sensor_type': self.soil_dict[i][0],
             'unit': self.soil_dict[i][1],
             'time': time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
         }
-        # 创建一个TCP套接字
-        # Create a TCP socket
-        client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        
-        # 设置套接字选项
-        # Set socket options
-        client.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        
-        # 连接到本机
-        # Connect to this machine
-        client.connect((self.HOST, self.PORT))
         try:
+            # 创建一个TCP套接字
+            # Create a TCP socket
+            client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            
+            # 设置套接字选项
+            # Set socket options
+            client.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            
+            # 连接到本机
+            # Connect to this machine
+            client.connect((self.HOST, self.PORT))
+            print(f"Publishing sensor data for {self.soil_dict[i][0]}.....")
             # 发送天气信息到本地，ensure_ascii=False 发送正确的单位
             # Send weather information to local, ensure_ascii=False for sending correct units
-            client.sendall(json.dumps(clientMessage, ensure_ascii=False).encode('utf-8'))
+            client.sendall(encrypt_with_aes(json.dumps(clientMessage, ensure_ascii=False).encode('utf-8')))
             
             # 本地在接受到天气信息后返回的信息
             # The information returned by the local after receiving the weather information
-            serverMessage = str(client.recv(1024), encoding='utf-8')
+            serverMessage = str(decrypt_with_aes(client.recv(1024)), encoding='utf-8')
             
             # 打印来自server的信息，实际上就是在server.py中定义的"node receive information"
             # Print information from the server, which is actually the "node receive information" defined in server.py
@@ -115,13 +117,13 @@ class Client(threading.Thread):
         # 排除掉异常
         # Eliminate exceptions
         except Exception as e:
-            pass
+            print(e)
         client.close()
 
 # 本函数用于传入所有client所需要的参数，本质是一个所有client的管理函数
 # This function is used to pass in the parameters required by all clients. It is essentially a management function for all clients.
 def main_sensor(serve_number, basic_port):
-    for index in range(500):
+    for index in range(1500):
         client = Client(serve_number, index, basic_port)
         client.start()
         time.sleep(20)

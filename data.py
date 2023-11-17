@@ -44,4 +44,3 @@ class DATA():
         # 如果没有找到合适的下一个节点，函数返回一个空的 packets 列表
         # If no suitable next node is found, the function returns an empty packets list
         return packets
-

@@ -5,9 +5,8 @@ import json # 导入json模块来处理JSON数据
 import socket # 导入socket模块用于网络通信
 import queue # 导入queue模块，提供了同步的、线程安全的队列类
 import time # 导入time模块用于处理时间相关的任务
-from datetime import datetime
 from data import DATA
-from utils import get_host_ip, hashstr
+from utils import get_host_ip, hashstr, encrypt_with_aes, decrypt_with_aes, derive_key_from_password
 
 BCAST_PORT = 33334 # 定义广播端口为33334
 
@@ -24,6 +23,9 @@ class Server(threading.Thread):
         # Initialize the parent class threading.Thread of the Server class
         threading.Thread.__init__(self)
 
+        # Set a RLock to use so that it can perform atomic updates 
+        self.rlock = threading.RLock()
+
         # 获取并设置服务器的IP地址
         # Get and set the IP address of the server
         self.HOST = get_host_ip()
@@ -34,12 +36,12 @@ class Server(threading.Thread):
         # Calculate the actual port based on serverID
         self.PORT_accept = self.basic_port + serverID
 
-        # self timestamp to add it to the point dict for updation based on timeouts
-        self.self_timestamp = str(datetime.now())[:-7]
+        # Adding time to live to the broadcast message of each node/server
+        self.ttl = 11
 
         # 创建字典记录服务器的IP地址和实际端口
-        # Create a dictionary to record the IP address, actual port and current time of the server
-        self.ip_addr = {server_name: [self.HOST, self.PORT_accept, self.self_timestamp]}
+        # Create a dictionary to record the IP address, actual port and ttl of the server
+        self.ip_addr = {server_name: [self.HOST, self.PORT_accept, self.ttl]}
         
         # 点字典，可能用于记录网络中的其他节点
         # Point dictionary, may be used to record other nodes in the network
@@ -88,6 +90,9 @@ class Server(threading.Thread):
         # broadcast interval in seconds
         self.broadcast_interval = 10
 
+        # encryption key
+        # self.encryption_key = derive_key_from_password()
+
     # 在 Python 中，当你创建一个线程时，你通常会从 threading.Thread 类派生一个新类，并且重写该类的 run() 方法。
     # In Python, when you create a thread, you usually derive a new class from the threading.Thread class and override the run() method of that class.
     # run() 方法定义了线程启动后将要执行的操作。当你调用线程的 start() 方法时，它会在新的线程中调用 run() 方法。
@@ -100,6 +105,7 @@ class Server(threading.Thread):
         accept = threading.Thread(target=self.accept)  
         broadcast_iP = threading.Thread(target=self.broadcastIP)  
         update_list = threading.Thread(target=self.updateList)  
+        decrement_ttl = threading.Thread(target=self.decrement_ttl)
         interests = threading.Thread(target=self.interests_process) 
         
         # 启动上述创建的线程
@@ -108,11 +114,13 @@ class Server(threading.Thread):
         update_list.start()
         accept.start()
         interests.start()
+        decrement_ttl.start()
         time.sleep(10)
 
         # 主线程等待这些辅助线程完成
         # The main thread waits for these auxiliary threads to complete
         accept.join()
+        decrement_ttl.join()
         interests.join()
 
     # 构建环状的网络拓扑，定义了网络中每个节点的邻居节点
@@ -124,6 +132,13 @@ class Server(threading.Thread):
     def update_network(self):
         # 遍历点字典，这个字典包含网络中所有节点的信息
         # Traverse the point dictionary, which contains information about all nodes in the network
+        nodes = list(self.point_dict.keys())
+        s = set(self.net_work.keys())
+        removed_nodes = [x for x in s if x not in nodes]
+        for key in list(self.net_work.keys()):
+            if key in removed_nodes:
+                del self.net_work[key]
+
         for i in range(len(self.point_dict)):
 
             # 如果是最后一个节点，它的邻居被设置为第一个节点和倒数第二个节点。
@@ -173,6 +188,13 @@ class Server(threading.Thread):
             # 获取网络中所有节点的集合
             # Get the set of all nodes in the network
             key_whole_set = set(self.net_work.keys())
+
+            nodes = list(self.net_work.keys())
+            s = set(self.fib.keys())
+            removed_nodes = [x for x in s if x not in nodes]
+            for key in list(self.fib.keys()):
+                if key in removed_nodes:
+                    del self.fib[key]
 
             # 初始化包含当前服务器ID的节点列表，这将作为信息传播的起点
             # 第一次迭代中，upper_layer是源节点（服务器自身）
@@ -262,12 +284,11 @@ class Server(threading.Thread):
         # 无限循环，这意味着服务器会不停地发送广播
         # Infinite loop, which means the server will keep sending broadcasts
         while True:
-            # Update the current timestamp when the broadcast is sent
-            curr_time = str(datetime.now())[:-7]
             # 将服务器的IP地址转换为JSON格式的字符串，然后编码为UTF-8字节串准备发送
             # Convert the server's IP address to a string in JSON format, and then encode it into a UTF-8 byte string to prepare for sending.
-            self.ip_addr[self.server_name][2] = curr_time
-            message = json.dumps(self.ip_addr).encode('utf-8')
+            # Add fresh ttl while sending the broadcast
+            self.ip_addr[self.server_name][2] = int(self.ttl)
+            message = encrypt_with_aes(json.dumps(self.ip_addr).encode('utf-8'))
         
             # 使用sendto方法发送编码后的消息
             # 消息被发送到特殊的'<broadcast>'地址，这是一个广播地址，消息将被发送给所有在BCAST_PORT端口监听的设备
@@ -280,24 +301,20 @@ class Server(threading.Thread):
             # Sleep for x seconds. This sleep time determines the broadcast interval.
             time.sleep(self.broadcast_interval)
 
-    # Updating the point dict to find which node went offline
-    def update_points(self) -> None:
-        keys_to_remove = []
-        for server_name in self.point_dict.keys():
-            # Get current time and the last broadcast time
-            current_time = datetime.now()
-            previous_time = datetime.strptime(str(self.point_dict[server_name][2]), '%Y-%m-%d %H:%M:%S')
-
-            # calculate the time difference since last broadcast
-            time_difference = int((current_time - previous_time).total_seconds())
-                                
-            if time_difference > self.broadcast_interval:
-                # remove the key if the broadcast is less than the interval
-                keys_to_remove.append(server_name)
-
-        for key in keys_to_remove:
-            if key in self.point_dict.keys():
-                self.point_dict.pop(key, None)
+    # Function to decrement ttl till it reaches zero
+    def decrement_ttl(self):
+        while True:
+            try:
+                # acquire the Rlock
+                with self.rlock:
+                    for key in list(self.point_dict.keys()):
+                        # Decrement the TTL
+                        temp = list(self.point_dict[key])
+                        temp[2] = max(temp[2]-1, 0)
+                        self.point_dict[key] = tuple(temp)
+            except RuntimeError:
+                self.point_dict = {}
+            time.sleep(1)
 
 
     # 监听广播消息，并更新节点信息字典
@@ -308,8 +325,8 @@ class Server(threading.Thread):
     # By doing this, the server is able to keep track of other nodes in the network and update its routing decisions based on this information. This is critical to maintaining effective communications in a dynamically changing network environment
     def updateList(self):
         # 服务器名称字段下存储了自身的IP和端口信息
-        # The server name field stores its own IP and port information.
-        self.point_dict[self.server_name] = (self.HOST, self.PORT_accept, self.self_timestamp)
+        # The server name field stores its own IP, port and ttl information.
+        self.point_dict[self.server_name] = (self.HOST, self.PORT_accept, self.ttl)
         
         # 创建一个UDP协议
         # Create a UDP protocol
@@ -347,7 +364,7 @@ class Server(threading.Thread):
 
             # 解码并将接收到的JSON格式的数据转换成Python字典
             # Decode and convert the received JSON format data into a Python dictionary
-            data = json.loads(data.decode('utf-8'))
+            data = json.loads(decrypt_with_aes(data).decode('utf-8'))
 
             # 解包字典，获取发送方的服务器名和地址信息
             # 地址信息包括host和port
@@ -356,21 +373,27 @@ class Server(threading.Thread):
             (key, value), = data.items()
             host = value[0]
             port = value[1]
-            timestamp = value[2]
-            point = (host, port, timestamp)
-
-            # Updating the point dict to find which node went offline
-            self.update_points()
+            ttl = int(value[2])
+            point = (host, port, ttl)
 
             # 检查接收到的点是否不是自己，并且之前还没有被记录过
             # Check whether the received point is not itself and has not been recorded before
-            if point != (self.HOST, self.PORT_accept, self.self_timestamp) and key not in self.point_dict.keys():
+            if point != (self.HOST, self.PORT_accept, self.ttl) and key not in self.point_dict.keys():
                 # 如果是新点，则加入到点字典中
                 # If it is a new point, add it to the point dictionary
                 self.point_dict[key] = point
-                # 更新网络拓扑信息
-                # Update network topology information
-                self.update_network()
+            
+            # Updating the point dict to find which node went offline
+            with self.rlock:
+                for key in list(self.point_dict.keys()):
+                    if self.point_dict[key][2] <= 0 and key != self.server_name:
+                        temp_dict = self.point_dict
+                        del temp_dict[key]
+                        self.point_dict = temp_dict
+
+            # 更新网络拓扑信息
+            # Update network topology information
+            self.update_network()
 
             # 更新转发信息库
             # Update forwarding information database
@@ -385,7 +408,7 @@ class Server(threading.Thread):
             
             # 休眠10秒，减缓循环速度，减少资源消耗
             # Sleep for 10 seconds to slow down the loop speed and reduce resource consumption
-            time.sleep(5)
+            time.sleep(self.broadcast_interval)
     
     # 接收连接并处理兴趣包（interests）和数据包（data）
     # 这个服务器既可以建立服务也可以发送信息
@@ -420,8 +443,7 @@ class Server(threading.Thread):
             packet = conn.recv(1024)
             # 将接收的数据包（预期为JSON格式）解码并加载为Python字典
             # Decode and load the received data packet (expected to be in JSON format) into a Python dictionary
-            packet = json.loads(packet.decode('utf-8'))
-
+            packet = json.loads(decrypt_with_aes(packet).decode('utf-8'))
             try:
                 # 从数据包中获取'type'字段，决定接下来的处理流程
                 # Get the 'type' field from the data packet to determine the next processing flow
@@ -439,7 +461,7 @@ class Server(threading.Thread):
 
                     # 打印接收信息的日志
                     # Print the log of received information
-                    print('node {} receive the information {}'.format(self.server_name, packet['content_name']))
+                    print('Device {} receive the information {}'.format(self.server_name, packet['content_name']))
                 
                 # 如果数据包类型是'data'，意味着这是一个数据包（包含请求的数据）
                 # If the packet type is 'data', it means this is a data packet (containing the requested data)
@@ -453,7 +475,7 @@ class Server(threading.Thread):
                         # 将数据发送回请求的客户端
                         # Send data back to the requesting client
                         # Send the entire package at once
-                        conn.sendall(json.dumps(information).encode('utf-8'))  # 一次性将整个包发完
+                        conn.sendall(encrypt_with_aes(json.dumps(information).encode('utf-8')))  # 一次性将整个包发完
                     else:
                         # 如果本地没有数据，则准备转发数据包
                         # If there is no data locally, prepare to forward the data packet
@@ -471,7 +493,7 @@ class Server(threading.Thread):
                             
                             # 发送数据包
                             # Send packet
-                            serve_check.sendall(json.dumps(packet_forward[1]).encode('utf-8'))
+                            serve_check.sendall(encrypt_with_aes(json.dumps(packet_forward[1]).encode('utf-8')))
                             
                             # 设置socket超时时间
                             # Set socket timeout
@@ -483,14 +505,14 @@ class Server(threading.Thread):
 
                             # 解码回复数据
                             # Decode reply data
-                            information = json.loads(information.decode('utf-8'))
+                            information = json.loads(decrypt_with_aes(information).decode('utf-8'))
                             
                             # 如果收到回复
                             # If a reply is received
                             if information:
                                 # 发送数据给原始请求者
                                 # Send data to original requester
-                                conn.sendall(json.dumps(information).encode('utf-8'))
+                                conn.sendall(encrypt_with_aes(json.dumps(information).encode('utf-8')))
                                 # 关闭连接
                                 # Close the connection
                                 conn.close()
@@ -509,7 +531,7 @@ class Server(threading.Thread):
                             information = {
                                 'status': 'not found'
                             }
-                            conn.sendall(json.dumps(information).encode('utf-8'))
+                            conn.sendall(encrypt_with_aes(json.dumps(information).encode('utf-8')))
                 
                 # 如果数据包类型是'sensor'，意味着这是一个来自传感器的数据包
                 # If the packet type is 'sensor', it means this is a packet from a sensor
@@ -531,7 +553,7 @@ class Server(threading.Thread):
                     }
                     # 将information发送给请求的客户端
                     # Send information to the requesting client
-                    conn.sendall(json.dumps(information).encode('utf-8'))
+                    conn.sendall(encrypt_with_aes(json.dumps(information).encode('utf-8')))
 
                     # 关闭socket
                     # Close socket
@@ -568,7 +590,7 @@ class Server(threading.Thread):
                         server.connect((self.point_dict['r'+str(self.net_work[self.server_name][i])][0], self.basic_port + self.net_work[self.server_name][i]))
                         # 将 JSON 格式的兴趣包发送到相应的节点
                         # Send the interest packet in JSON format to the corresponding node
-                        server.sendall(json.dumps(packet).encode('utf-8'))
+                        server.sendall(encrypt_with_aes(json.dumps(packet).encode('utf-8')))
                         server.close()
                 # 异常处理
                 # Exception handling
