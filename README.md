@@ -17,7 +17,7 @@
     python3 actuator.py r1/temperature
     ```
     where, 
-    - r1 -> name of the node to get the data from
+    - r1 -> name of the node to get the data from, can be changed to r2, r3, r4
     - temperature -> sensor data information to get. Choose from the following options: temperature, humidity, cec, compaction, nutrition, pH, salinity, pesticides
 
 5. [OPTIONAL] To run the code on different RPis, please run the following command/shell script by passing the appropriate node number:
