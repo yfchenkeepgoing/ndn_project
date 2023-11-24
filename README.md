@@ -13,7 +13,7 @@
     After the above commands, please restart a new session of terminal (close the old window) for the path settings to take effect. Again, perform the step 2 to successfully install all the libraries.
 4. After a while, once all the nodes are synced up, launch a new seperate instance of the terminal, independent of the above tmux sessions. Run the following commands to get the data from the required node and sensor:
     ```
-    source venv/bin/activate
+    source venv1/bin/activate
     python3 actuator.py r1/temperature
     ```
     where, 
