@@ -11,7 +11,6 @@ load_dotenv()
 
 def get_host_ip():
     '''
-    获取本地IP地址的函数
     Function to get the local IP Address
     '''
     try:
@@ -25,7 +24,6 @@ def get_host_ip():
 
 def hashstr(string):
     '''
-    执行字符串 md5 哈希的函数  
     Function to perform md5 hashing of strings
     '''
     md5 = hashlib.md5()

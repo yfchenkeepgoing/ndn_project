@@ -1,18 +1,12 @@
-# This actuator file simulates the below command
-# curl http://127.0.0.1:33351/r1/temperature
-# curl https://10.35.70.44:33335/r0/temperature
-# Run by using the below command
-# python3 actuator.py r1/temperature
-
 import sys
 import time
 import json
 import socket
-from utils import get_host_ip, encrypt_with_aes, decrypt_with_aes, derive_key_from_password
+from utils import get_host_ip, encrypt_with_aes, decrypt_with_aes
 
 POD_PORT = 33335
 
-def get_data(node, sensor_type):
+def get_data(node: str, sensor_type: str):
     '''
     Function to get the requested data from the node
     '''
