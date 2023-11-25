@@ -5,7 +5,7 @@ from sensor import main_sensor
 from server import Server
 import sys
 
-
+# This file/function was implemented by Yifan and Smit
 def main() -> None:
     '''
     Function to run the main functionality like starting the server and the sensors.

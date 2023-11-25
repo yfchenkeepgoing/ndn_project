@@ -1,3 +1,4 @@
+# This file/function was implemented by Yifan
 #!/bin/bash
 echo Starting the Device $1.....
 # This line starts the main.py script in the background and passes an argument ($1) that is given when the shell.sh script is executed.

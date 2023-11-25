@@ -1,3 +1,4 @@
+# This file/function was implemented by Smit
 #!/bin/bash
 
 # Find the process ID of 'python3 ./main.py'

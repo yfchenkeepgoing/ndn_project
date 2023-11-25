@@ -1,3 +1,4 @@
+# This file/function was implemented by Yifan
 #!/bin/bash
 
 # Define the list of servers

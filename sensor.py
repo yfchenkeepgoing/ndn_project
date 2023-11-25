@@ -9,7 +9,7 @@ from utils import get_host_ip, encrypt_with_aes, decrypt_with_aes
 import random
 from typing import List
 
-
+# This file/function was implemented by Peichen and refactored by Smit
 class Client(threading.Thread):
     '''
     Client class; extends to multi-threading mode

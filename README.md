@@ -1,3 +1,11 @@
+# GROUP - 8 - Scalable Project 3 - Implementation of Secure Peer-to-Peer ICN-Based Networking Protocol for Smart Agriculture Systems
+
+## Group Members:
+- Smit Shah - 23331457
+- Yifan Chen - 23333994
+- Peichen Sun - 23333198
+- Sulaeman Shaik - 23339673
+
 # Instructions to run the project
 1. Copy the whole folder along with the .env file to the Rpi.
 2. Run the code using the `runme.sh` shell script using the below command:

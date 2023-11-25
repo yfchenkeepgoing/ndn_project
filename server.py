@@ -61,7 +61,7 @@ class Server(threading.Thread):
         # Broadcast interval in seconds
         self.broadcast_interval = 10
 
-
+    # This file/function was implemented by Sulaeman
     def run(self) -> None:
         accept = threading.Thread(target=self.accept)
         broadcast_iP = threading.Thread(target=self.broadcastIP)
@@ -80,7 +80,7 @@ class Server(threading.Thread):
         decrement_ttl.join()
         interests.join()
 
-
+    # This file/function was implemented by Smit
     def update_network(self) -> None:
         '''
         Function to build/update the ring-shaped network topology and
@@ -110,7 +110,7 @@ class Server(threading.Thread):
         for k, v in self.net_work.items():
             self.net_work[k] = list(v)
 
-
+    # This file/function was implemented by Yifan
     def update_fib(self) -> None:
         '''
         Function to build/update the Forwarding Information Base (FIB) to 
@@ -163,7 +163,7 @@ class Server(threading.Thread):
             print(e)
             pass
 
-
+    # This file/function was implemented by Peichen
     def broadcastIP(self) -> None:
         '''
         Function to broadcast the server information on the 'BCAST_PORT' using UDP 
@@ -185,7 +185,7 @@ class Server(threading.Thread):
             # Sleep for 'broadcast_interval' seconds. This sleep time determines the broadcast interval.
             time.sleep(self.broadcast_interval)
 
-
+    # This file/function was implemented by Smit
     def decrement_ttl(self) -> None:
         '''
         Function to decrement TTL till it reaches zero
@@ -203,7 +203,7 @@ class Server(threading.Thread):
                 self.point_dict = {}
             time.sleep(1)
 
-
+    # This file/function was implemented by Yifan and Smit
     def updateList(self) -> None:
         '''
         Function to listen to broadcast messages and update the node information dictionary.
@@ -258,7 +258,7 @@ class Server(threading.Thread):
             # Sleep for broadcast_interval+1 seconds to slow down the loop speed and reduce resource consumption
             time.sleep(self.broadcast_interval+1)
 
-
+    # This file/function was implemented by Yifan and Smit
     def accept(self) -> None:
         '''
         Function to receive connections and process interest packets and data packets.
@@ -349,7 +349,7 @@ class Server(threading.Thread):
                 print(f"Something went wrong, dropping the packet due to: {e}")
                 continue
 
-
+    # This file/function was implemented by Yifan and Smit            
     def interests_process(self) -> None:
         '''
         Function to process Interest packets in the queue and forward them through the network to other associated nodes to find and retrieve the requested data.
